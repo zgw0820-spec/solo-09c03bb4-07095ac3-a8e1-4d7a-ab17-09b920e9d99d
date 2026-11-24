@@ -1,0 +1,83 @@
+{
+  "approved": false,
+  "tape": "T2",
+  "max_dr_mounts": 2,
+  "scenarios_checked": 2,
+  "worst_case_mounts": null,
+  "failing_scenario": {
+    "failed_tape": "T1",
+    "ok": false,
+    "feasible": false,
+    "min_mounts": null,
+    "missing_shards": [
+      {
+        "shard_id": "a1",
+        "file_id": "file-A",
+        "reason": "分片在磁带目录中没有任何副本"
+      },
+      {
+        "shard_id": "a2",
+        "file_id": "file-A",
+        "reason": "分片在磁带目录中没有任何副本"
+      },
+      {
+        "shard_id": "b1",
+        "file_id": "file-B",
+        "reason": "分片在磁带目录中没有任何副本"
+      },
+      {
+        "shard_id": "b2",
+        "file_id": "file-B",
+        "reason": "分片在磁带目录中没有任何副本"
+      }
+    ],
+    "capacity_issues": [],
+    "detail": "场景[库内再坏一盘 T1]无解：无法排程：4 个分片缺失副本"
+  },
+  "scenarios": [
+    {
+      "failed_tape": null,
+      "ok": true,
+      "feasible": true,
+      "min_mounts": 2,
+      "missing_shards": [],
+      "capacity_issues": [],
+      "detail": "场景[无故障]最少需要 2 次装带，不超过上限 2"
+    },
+    {
+      "failed_tape": "T1",
+      "ok": false,
+      "feasible": false,
+      "min_mounts": null,
+      "missing_shards": [
+        {
+          "shard_id": "a1",
+          "file_id": "file-A",
+          "reason": "分片在磁带目录中没有任何副本"
+        },
+        {
+          "shard_id": "a2",
+          "file_id": "file-A",
+          "reason": "分片在磁带目录中没有任何副本"
+        },
+        {
+          "shard_id": "b1",
+          "file_id": "file-B",
+          "reason": "分片在磁带目录中没有任何副本"
+        },
+        {
+          "shard_id": "b2",
+          "file_id": "file-B",
+          "reason": "分片在磁带目录中没有任何副本"
+        }
+      ],
+      "capacity_issues": [],
+      "detail": "场景[库内再坏一盘 T1]无解：无法排程：4 个分片缺失副本"
+    }
+  ],
+  "remaining_tapes": [
+    "T1",
+    "T2"
+  ],
+  "message": "拒绝外送 T2：场景[库内再坏一盘 T1]无解：无法排程：4 个分片缺失副本。在库目录未变。"
+}

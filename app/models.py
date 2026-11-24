@@ -216,3 +216,143 @@ class ScheduleResponse(BaseModel):
     capacity_issues: list[CapacityIssue] = Field(default_factory=list)
     message: str = ""
     explanation: Optional[Explanation] = None
+
+
+# --------------------------------------------------------------------------- #
+# 磁带外送审批（在库目录登记 + 灾备装带上限）
+# --------------------------------------------------------------------------- #
+
+LIBRARY_EXAMPLE = {
+    "staging_capacity": 8,
+    "max_dr_mounts": 2,
+    "files": [
+        {
+            "id": "file-A",
+            "shards": [
+                {
+                    "id": "a1",
+                    "size": 3,
+                    "replicas": [
+                        {"tape": "T1", "position": 10},
+                        {"tape": "T2", "position": 10},
+                        {"tape": "T3", "position": 10},
+                    ],
+                },
+                {
+                    "id": "a2",
+                    "size": 3,
+                    "replicas": [
+                        {"tape": "T1", "position": 30},
+                        {"tape": "T2", "position": 30},
+                        {"tape": "T3", "position": 30},
+                    ],
+                },
+            ],
+        },
+        {
+            "id": "file-B",
+            "shards": [
+                {
+                    "id": "b1",
+                    "size": 3,
+                    "replicas": [
+                        {"tape": "T1", "position": 20},
+                        {"tape": "T2", "position": 20},
+                        {"tape": "T3", "position": 20},
+                    ],
+                },
+                {
+                    "id": "b2",
+                    "size": 3,
+                    "replicas": [
+                        {"tape": "T1", "position": 40},
+                        {"tape": "T2", "position": 40},
+                        {"tape": "T3", "position": 40},
+                    ],
+                },
+            ],
+        },
+    ],
+}
+
+
+class LibraryRegistration(ScheduleRequest):
+    """登记在库目录：沿用排程请求格式，另加灾备装带次数上限。"""
+
+    model_config = ConfigDict(json_schema_extra={"examples": [LIBRARY_EXAMPLE]})
+
+    max_dr_mounts: int = Field(
+        ...,
+        ge=1,
+        description=(
+            "灾备装带次数上限：外送一盘磁带后，无论无故障还是库内再坏任意一盘，"
+            "恢复全部文件所需的装带次数都不得超过该值"
+        ),
+    )
+
+
+class ApproveRequest(BaseModel):
+    """一盘在库磁带的外送申请。"""
+
+    model_config = ConfigDict(json_schema_extra={"examples": [{"tape": "T3"}]})
+
+    tape: str = Field(..., min_length=1, description="申请外送的在库磁带带号")
+
+
+class ScenarioResult(BaseModel):
+    """一个灾备场景的核算结果（无故障，或库内再坏某一盘）。"""
+
+    failed_tape: Optional[str] = Field(
+        None, description="假设故障的在库磁带；null 表示无故障场景"
+    )
+    ok: bool = Field(..., description="该场景是否满足灾备要求")
+    feasible: bool = Field(..., description="该场景下能否恢复全部文件")
+    min_mounts: Optional[int] = Field(
+        None, description="恢复全部文件所需的最少装带次数；无解时为 null"
+    )
+    missing_shards: list[MissingShard] = Field(default_factory=list)
+    capacity_issues: list[CapacityIssue] = Field(default_factory=list)
+    detail: str = ""
+
+
+class ApproveResponse(BaseModel):
+    """审批结论：批准则目录已更新并落盘，拒绝则目录不变。"""
+
+    approved: bool
+    tape: str = Field(..., description="申请外送的磁带")
+    max_dr_mounts: int = Field(..., description="当前生效的灾备装带次数上限")
+    scenarios_checked: int = Field(..., description="核算的场景总数（无故障 + 各单盘故障）")
+    worst_case_mounts: Optional[int] = Field(
+        None, description="所有场景中最坏的最少装带次数（全部可行时给出）"
+    )
+    failing_scenario: Optional[ScenarioResult] = Field(
+        None, description="拒绝时给出一个未通过的场景及其原因"
+    )
+    scenarios: list[ScenarioResult] = Field(
+        default_factory=list, description="全部场景的核算明细"
+    )
+    remaining_tapes: list[str] = Field(
+        default_factory=list, description="审批生效后在库磁带列表（拒绝时为当前在库列表）"
+    )
+    message: str = ""
+
+
+class SentTapeRecord(BaseModel):
+    """一盘已获准外送磁带的审计记录。"""
+
+    tape: str
+    approved_at: str = Field(..., description="UTC ISO-8601 时间戳")
+    worst_case_mounts: int = Field(..., description="批准时所有场景中最坏的装带次数")
+    remaining_tapes: list[str] = Field(default_factory=list)
+
+
+class LibraryStatus(BaseModel):
+    """在库目录概览与已外送记录。"""
+
+    registered: bool
+    staging_capacity: Optional[float] = None
+    max_dr_mounts: Optional[int] = None
+    tapes: list[str] = Field(default_factory=list, description="当前在库磁带")
+    file_count: int = 0
+    shard_count: int = 0
+    sent_tapes: list[SentTapeRecord] = Field(default_factory=list)

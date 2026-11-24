@@ -11,6 +11,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
+# 在库目录状态文件的默认位置（docker compose 会挂载命名卷到这里）
+ENV LIBRARY_STATE_PATH=/data/library_state.json
+RUN mkdir -p /data
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

@@ -7,3 +7,4 @@ tests/
 examples/
 *.md
 .venv/
+data/

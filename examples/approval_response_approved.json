@@ -1,0 +1,42 @@
+{
+  "approved": true,
+  "tape": "T3",
+  "max_dr_mounts": 2,
+  "scenarios_checked": 3,
+  "worst_case_mounts": 2,
+  "failing_scenario": null,
+  "scenarios": [
+    {
+      "failed_tape": null,
+      "ok": true,
+      "feasible": true,
+      "min_mounts": 2,
+      "missing_shards": [],
+      "capacity_issues": [],
+      "detail": "场景[无故障]最少需要 2 次装带，不超过上限 2"
+    },
+    {
+      "failed_tape": "T1",
+      "ok": true,
+      "feasible": true,
+      "min_mounts": 2,
+      "missing_shards": [],
+      "capacity_issues": [],
+      "detail": "场景[库内再坏一盘 T1]最少需要 2 次装带，不超过上限 2"
+    },
+    {
+      "failed_tape": "T2",
+      "ok": true,
+      "feasible": true,
+      "min_mounts": 2,
+      "missing_shards": [],
+      "capacity_issues": [],
+      "detail": "场景[库内再坏一盘 T2]最少需要 2 次装带，不超过上限 2"
+    }
+  ],
+  "remaining_tapes": [
+    "T1",
+    "T2"
+  ],
+  "message": "批准外送 T3：3 个场景均可在上限 2 次装带内恢复全部文件（最坏 2 次），该盘已从在库目录移除"
+}

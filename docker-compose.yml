@@ -5,4 +5,12 @@ services:
     container_name: tape-restore-scheduler
     ports:
       - "8000:8000"
+    environment:
+      # 在库目录状态文件：放在挂载卷里，容器重启/重建后已外送的磁带不会被算回来
+      - LIBRARY_STATE_PATH=/data/library_state.json
+    volumes:
+      - library-data:/data
     restart: unless-stopped
+
+volumes:
+  library-data:

@@ -33,6 +33,62 @@ curl -s http://localhost:8000/example | \
 
 也可不用 Docker：`pip install -r requirements.txt && uvicorn app.main:app --port 8000`。
 
+## 磁带外送审批
+
+库管员收到磁带外送单时，用这组接口确认“送走后仍满足灾备恢复要求”：
+
+1. `PUT /library` 按排程请求格式登记**单库目录**（`staging_capacity` + `files`），
+   另设 `max_dr_mounts`（灾备装带次数上限）；重复登记会整体替换并重置外送记录。
+2. `POST /library/approvals` 每次申请送走**一盘**在库磁带（`{"tape": "T3"}`）。
+   扣除该盘后，**无故障**以及**库内再坏任意一盘**的每个场景，都必须能在上限
+   次数内恢复全部文件，才予批准。
+3. 批准：该盘从在库目录移除并**原子落盘**（重启不会把它算回来）；拒绝：目录
+   不变，响应给出一个未通过场景——或附无解原因（缺失副本的分片 / 超出中转盘
+   容量的文件），或附该场景**所需的最少装带次数**。
+4. `GET /library` 随时可查当前在库目录（试算期间也不阻塞），响应格式与
+   `/schedule` 请求完全一致，可直接提交；`GET /library/status` 给出上限、
+   在库磁带与已外送审计记录。
+
+| 方法 | 路径                  | 说明                                       |
+| ---- | --------------------- | ------------------------------------------ |
+| PUT  | `/library`            | 登记/重设在库目录与灾备装带次数上限        |
+| GET  | `/library`            | 查询当前在库目录（可直接提交 `/schedule`） |
+| GET  | `/library/status`     | 在库概览：上限、在库磁带、已外送记录       |
+| POST | `/library/approvals`  | 审批一盘在库磁带的外送申请                 |
+
+可调用样例（服务启动后）：
+
+```bash
+# 登记：目录沿用排程格式，另设灾备装带次数上限为 2
+curl -s -X PUT http://localhost:8000/library \
+     -H 'Content-Type: application/json' \
+     --data-binary @examples/library_register.json
+
+# 申请外送 T3：3 个场景（无故障、再坏 T1、再坏 T2）最坏 2 次装带 ≤ 上限，批准
+curl -s -X POST http://localhost:8000/library/approvals \
+     -H 'Content-Type: application/json' \
+     --data-binary @examples/approval_request.json
+
+# 查询当前在库目录，直接提交给原 /schedule
+curl -s http://localhost:8000/library | \
+  curl -s -X POST http://localhost:8000/schedule \
+       -H 'Content-Type: application/json' --data-binary @-
+
+# 再申请外送 T2：库内只剩 T1，T1 再坏则全部文件无解 → 拒绝，目录不变
+curl -s -X POST http://localhost:8000/library/approvals \
+     -H 'Content-Type: application/json' -d '{"tape": "T2"}'
+```
+
+完整演示脚本：`bash examples/approval_demo.sh`；批准/拒绝的真实响应见
+`examples/approval_response_approved.json` 与 `examples/approval_response_rejected.json`。
+
+**持久化与并发**：状态文件由 `LIBRARY_STATE_PATH` 指定（compose 中默认为
+`/data/library_state.json`，挂载命名卷 `library-data`）；写入采用临时文件 +
+fsync + 原子替换，崩溃不会留下半个文件；状态文件损坏时服务拒绝启动而不是
+静默重置。审批的“试算 + 落盘 + 生效”在同一把锁内完成，并发审批不会凭过时
+目录放行；查询只读已生效快照，无需等待试算。注意 `docker compose down -v`
+会删除命名卷（即销毁在库台账）。
+
 ## 请求格式
 
 ```json
@@ -139,16 +195,23 @@ python -m pytest -q
 - `brute_force_min()`：对小型实例穷举所有装带序列，与求解器的最少装带数对比
   （含大量随机实例），验证最优性。
 
+外送审批另有 `tests/test_library.py`：登记/查询回环（`GET /library` 结果直接
+提交 `/schedule`）、批准、两类拒绝（故障场景无解、超装带上限）、拒绝后目录
+不变且不落盘、重启后已外送磁带不算回来、顺序与并发交错审批（并发下恰好一个
+批准）、以及试算期间查询不阻塞。
+
 ## 文件结构
 
 ```
 app/
-  main.py       FastAPI 应用与路由
+  main.py       FastAPI 应用与路由（排程 + 外送审批）
   models.py     Pydantic 请求/响应模型与上限校验
   solver.py     最少装带次数求解器
+  library.py    在库目录存储：登记、审批、原子落盘与并发控制
 tests/
   test_solver.py  求解器、重放校验、暴力对拍
   test_api.py     HTTP 接口测试
-examples/         样例请求与响应
+  test_library.py 外送审批：故障场景、交错审批、持久化
+examples/         样例请求与响应、外送审批演示脚本
 Dockerfile / docker-compose.yml
 ```
